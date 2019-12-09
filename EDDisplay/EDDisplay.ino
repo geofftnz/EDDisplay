@@ -177,7 +177,7 @@ int displayTest()
     LED_Blank(LED7_fuel);
     for(int i=0;i<100;i++){
       refresh7Segments(); 
-      delay(10);
+      delay(2);
     }
   }
   if (testSequence == 17)
@@ -186,7 +186,7 @@ int displayTest()
     LED_SetFromInt(LED7_fuel,5678);
     for(int i=0;i<100;i++){
       refresh7Segments(); 
-      delay(10);
+      delay(2);
     }
   }
 
@@ -209,8 +209,15 @@ int displayTest()
 
 void refresh7Segments()
 {
-  LED_Display4(LED7_cargo,0);
-  LED_Display4(LED7_fuel,4);  
+  unsigned char i; 
+  for(i = 0;i<4;i++)
+  {
+    LED_Out(LED_Lookup[LED7_fuel[i]&0x0f]);
+    LED_Out(1<<i);
+    LED_Out(LED_Lookup[LED7_cargo[i]&0x0f]);
+    LED_Out(1<<i);
+    LowPulse(PIN_LED_RCLK);
+  }
 }
 
 void displayMain()
