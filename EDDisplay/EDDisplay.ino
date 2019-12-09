@@ -17,7 +17,6 @@
 #define PIN_LED_SCLK 2
 #define PIN_LED_RCLK 3
 #define PIN_LED_DIO 4
-#define PIN_LED_RCLK2 8
 
 // Misc
 #define PIN_STANDBY 12
@@ -33,8 +32,8 @@ LiquidCrystal_I2C navLCD(0x27, 2, 1, 0, 4, 5, 6, 7,3, POSITIVE);
 int displayState = DISPLAY_STANDBY;
 
 // 7 segment state
-int cargo_value = 0;
-int fuel_value = 0;
+int cargo_value = 158;
+int fuel_value = 8865;
 byte LED7_cargo[] = {10,10,10,10};
 byte LED7_fuel[] = {10,10,10,10};
 
@@ -175,7 +174,7 @@ int displayTest()
   if (testSequence == 16)
   {
     LED_SetFromInt(LED7_cargo,1234);
-    LED_SetFromInt(LED7_fuel,5678);
+    LED_Blank(LED7_fuel);
     for(int i=0;i<100;i++){
       refresh7Segments(); 
       delay(10);
@@ -183,7 +182,7 @@ int displayTest()
   }
   if (testSequence == 17)
   {
-    LED_SetFromInt(LED7_cargo,1234);
+    LED_Blank(LED7_cargo);
     LED_SetFromInt(LED7_fuel,5678);
     for(int i=0;i<100;i++){
       refresh7Segments(); 
@@ -210,8 +209,8 @@ int displayTest()
 
 void refresh7Segments()
 {
-  LED_Display4(LED7_cargo,PIN_LED_RCLK);
-  LED_Display4(LED7_fuel,PIN_LED_RCLK2);  
+  LED_Display4(LED7_cargo,0);
+  LED_Display4(LED7_fuel,4);  
 }
 
 void displayMain()
@@ -315,24 +314,32 @@ void LED_Out(unsigned char x)
   }
 }
 
-void LED_Display4(unsigned char *LEDs, int rclk)
+void LED_Display4(unsigned char *LEDs, int digit_ofs)
 {
   unsigned char digit;
   for(digit = 0;digit<4;digit++)
   {
+    if (digit_ofs == 0){
+      LED_Out(0);
+      LED_Out(0);
+    }
     LED_Out(LED_Lookup[LEDs[digit]&0x0f]);
     LED_Out(1<<digit);
-    LowPulse(rclk);
+    if (digit_ofs > 0){
+      LED_Out(0);
+      LED_Out(0);
+    }
+    LowPulse(PIN_LED_RCLK);
   }
 }
 
-void LED_DisplayInt(int x)
+void LED_DisplayInt(int x, int digit_ofs)
 {
   unsigned char digit;
   for(digit = 0;digit<4;digit++)
   {
     LED_Out(LED_Lookup[x%10]);
-    LED_Out(1<<digit);
+    LED_Out(1<<(digit+digit_ofs));
     LowPulse(PIN_LED_RCLK);
 
     x/=10;
