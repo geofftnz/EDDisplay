@@ -13,6 +13,12 @@
 #define latchPin 6 //Pin connected to ST_CP of 74HC595
 #define clockPin 7 //Pin connected to SH_CP of 74HC595
 
+// 7seg displays
+#define PIN_LED_SCLK 2
+#define PIN_LED_RCLK 3
+#define PIN_LED_DIO 4
+#define PIN_LED_RCLK2 8
+
 // Misc
 #define PIN_STANDBY 12
 
@@ -25,6 +31,12 @@ LiquidCrystal_I2C navLCD(0x27, 2, 1, 0, 4, 5, 6, 7,3, POSITIVE);
 #define DISPLAY_TEST 2
 #define DISPLAY_RUN 3
 int displayState = DISPLAY_STANDBY;
+
+// 7 segment state
+int cargo_value = 0;
+int fuel_value = 0;
+byte LED7_cargo[] = {10,10,10,10};
+byte LED7_fuel[] = {10,10,10,10};
 
 // Serial
 #define BUFLEN 64
@@ -55,6 +67,12 @@ void setup()
   pinMode(dataPin, OUTPUT);
   pinMode(latchPin, OUTPUT);
   pinMode(clockPin, OUTPUT);
+
+  // 7seg setup
+  pinMode(PIN_LED_SCLK,OUTPUT);
+  pinMode(PIN_LED_RCLK,OUTPUT);
+  pinMode(PIN_LED_DIO,OUTPUT);
+  
 
   // LCD setup
   navLCD.begin(20,4);
@@ -106,9 +124,15 @@ int displayStandby()
   byte data[]={0,0};
   shiftRegisterWrite(data,2);
 
+  // turn off 7seg
+  LED_Blank(LED7_cargo);
+  LED_Blank(LED7_fuel);
+  refresh7Segments();
+
   delay(500);
   return isStandbyOn()?DISPLAY_INIT:DISPLAY_STANDBY;
 }
+
 
 void displayInit()
 {
@@ -138,23 +162,56 @@ int displayTest()
   sprintf(output,"TESTING: %02d",testSequence);
   setLCDLine(&navLCD,3,output); 
 
-  lights<<=1;
-  if (!lights) lights = 1;
-
-  data[0] = lights >> 8;
-  data[1] = (byte)lights;
-  shiftRegisterWrite(data,2);
-  delay(50);
-  
-  testSequence++;
-  if (testSequence > 15)
+  if (testSequence < 16)
   {
+    lights<<=1;
+    if (!lights) lights = 1;
+  
+    data[0] = lights >> 8;
+    data[1] = (byte)lights;
+    shiftRegisterWrite(data,2);
+    delay(50);
+  }
+  if (testSequence == 16)
+  {
+    LED_SetFromInt(LED7_cargo,1234);
+    LED_SetFromInt(LED7_fuel,5678);
+    for(int i=0;i<100;i++){
+      refresh7Segments(); 
+      delay(10);
+    }
+  }
+  if (testSequence == 17)
+  {
+    LED_SetFromInt(LED7_cargo,1234);
+    LED_SetFromInt(LED7_fuel,5678);
+    for(int i=0;i<100;i++){
+      refresh7Segments(); 
+      delay(10);
+    }
+  }
+
+  // exit clause
+  testSequence++;
+  if (testSequence > 17)
+  {
+    // turn off 7seg
+    LED_Blank(LED7_cargo);
+    LED_Blank(LED7_fuel);
+    refresh7Segments();
+
     clearLCD(&navLCD); 
     data[0] = data[1] = 0;
     shiftRegisterWrite(data,2);
     nextState = DISPLAY_RUN;  
   }
   return nextState;
+}
+
+void refresh7Segments()
+{
+  LED_Display4(LED7_cargo,PIN_LED_RCLK);
+  LED_Display4(LED7_fuel,PIN_LED_RCLK2);  
 }
 
 void displayMain()
@@ -175,6 +232,10 @@ void displayMain()
     bufReadPos = -1;
     bufPos = 0;
   }
+
+  LED_SetFromInt(LED7_cargo,cargo_value);
+  LED_SetFromInt(LED7_fuel,fuel_value);
+  refresh7Segments(); 
 }
 
 void setLCDBacklight(LiquidCrystal_I2C *lcd, uint8_t value)
@@ -213,5 +274,67 @@ void serialEvent() {
     {
       bufPos = 0;
     }
+  }
+}
+
+
+void LowPulse(int pin)
+{
+    digitalWrite(pin,LOW);
+    digitalWrite(pin,HIGH);    
+}
+
+void LED_Blank(byte *data)
+{
+  byte blank = 10;
+  data[0] = blank;
+  data[1] = blank;
+  data[2] = blank;
+  data[3] = blank;
+}
+
+void LED_SetFromInt(byte *data, int value)
+{
+  unsigned char digit;
+  for(digit = 0;digit<4;digit++)
+  {
+    data[digit] = value%10;
+    value/=10;    
+  }
+}
+
+
+void LED_Out(unsigned char x)
+{
+  unsigned char i;
+  for(i=0;i<8;i++)
+  {
+    digitalWrite(PIN_LED_DIO,(x & 0x80)?HIGH:LOW);
+    x<<=1;
+    LowPulse(PIN_LED_SCLK);    
+  }
+}
+
+void LED_Display4(unsigned char *LEDs, int rclk)
+{
+  unsigned char digit;
+  for(digit = 0;digit<4;digit++)
+  {
+    LED_Out(LED_Lookup[LEDs[digit]&0x0f]);
+    LED_Out(1<<digit);
+    LowPulse(rclk);
+  }
+}
+
+void LED_DisplayInt(int x)
+{
+  unsigned char digit;
+  for(digit = 0;digit<4;digit++)
+  {
+    LED_Out(LED_Lookup[x%10]);
+    LED_Out(1<<digit);
+    LowPulse(PIN_LED_RCLK);
+
+    x/=10;
   }
 }
